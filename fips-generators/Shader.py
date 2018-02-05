@@ -9,7 +9,79 @@ import genutil as util
 from util import glslcompiler, shdc
 from mod import log
 import zlib # only for crc32
-
+DEFAULT_UNIFORM_TYPES_DEFINE = '''
+#ifndef SHD_FLOAT
+#define SHD_FLOAT float
+#endif
+#ifndef SHD_VEC2
+typedef struct {
+    SHD_FLOAT x;
+    SHD_FLOAT y;
+} shd_vec2;
+#define SHD_VEC2 shd_vec2
+#endif
+#ifndef SHD_VEC3
+typedef struct {
+    SHD_FLOAT x;
+    SHD_FLOAT y;
+    SHD_FLOAT z;
+} shd_vec3;
+#define SHD_VEC3 shd_vec3
+#endif
+#ifndef SHD_VEC4
+typedef struct {
+    SHD_FLOAT x;
+    SHD_FLOAT y;
+    SHD_FLOAT z;
+    SHD_FLOAT w;
+} shd_vec4;
+#define SHD_VEC4 shd_vec4
+#endif
+#ifndef SHD_MAT2
+typedef struct {
+    SHD_FLOAT m00;
+    SHD_FLOAT m01;
+    SHD_FLOAT m10;
+    SHD_FLOAT m11;
+} shd_mat2;
+#define SHD_MAT2 shd_mat2
+#endif
+#ifndef SHD_MAT3
+typedef struct {
+    SHD_FLOAT m00;
+    SHD_FLOAT m01;
+    SHD_FLOAT m02;
+    SHD_FLOAT m10;
+    SHD_FLOAT m11;
+    SHD_FLOAT m12;
+    SHD_FLOAT m20;
+    SHD_FLOAT m21;
+    SHD_FLOAT m22;
+} shd_mat3;
+#define SHD_MAT3 shd_mat3
+#endif
+#ifndef SHD_MAT4
+typedef struct {
+    SHD_FLOAT m00;
+    SHD_FLOAT m01;
+    SHD_FLOAT m02;
+    SHD_FLOAT m03;
+    SHD_FLOAT m10;
+    SHD_FLOAT m11;
+    SHD_FLOAT m12;
+    SHD_FLOAT m13;
+    SHD_FLOAT m20;
+    SHD_FLOAT m21;
+    SHD_FLOAT m22;
+    SHD_FLOAT m23;
+    SHD_FLOAT m30;
+    SHD_FLOAT m31;
+    SHD_FLOAT m32;
+    SHD_FLOAT m33;
+} shd_mat4;
+#define SHD_MAT4 shd_mat4
+#endif
+'''
 if platform.system() == 'Windows' :
     from util import hlslcompiler
 
@@ -53,13 +125,13 @@ validUniformTypes = [ 'mat4', 'mat2', 'vec4', 'vec3', 'vec2', 'float' ]
 validUniformArrayTypes = [ 'mat4', 'mat2', 'vec4' ]
 
 uniformCType = {
-    'float': 'float',
-    'vec2':  'float',
-    'vec3':  'float',
-    'vec4':  'float',
-    'mat2':  'float',
-    'mat3':  'float',
-    'mat4':  'float',
+    'float': 'SHD_FLOAT',
+    'vec2':  'SHD_VEC2',
+    'vec3':  'SHD_VEC3',
+    'vec4':  'SHD_VEC4',
+    'mat2':  'SHD_MAT2',
+    'mat3':  'SHD_MAT3',
+    'mat4':  'SHD_MAT4',
 }
 
 uniformSokolTypes = {
@@ -516,6 +588,7 @@ def writeProgramHeader(f, shdLib, prog, slang) :
     # f.write('const char* shd_shader_{}_source_vs = "";\n'.format(prog.name.lower()))
     # f.write('const char* shd_shader_{}_source_fs = "";\n'.format(prog.name.lower()))
     # f.write('namespace ' + prog.name + ' {\n')
+    f.write(DEFAULT_UNIFORM_TYPES_DEFINE)
     for stage in ['VS', 'FS']:
         shd = shdLib.vertexShaders[prog.vs] if stage == 'VS' else shdLib.fragmentShaders[prog.fs]
         refl = shd.slReflection[slang]
@@ -530,8 +603,6 @@ def writeProgramHeader(f, shdLib, prog, slang) :
             for m in ub['members']:
                 next_offset = m['offset']
                 numElements = m['num']
-                if m['type'] == 'mat4':
-                    numElements *= 4 * 4
                 if next_offset > cur_offset:
                     f.write('   uint8_t _pad_{}[{}];\n'.format(cur_offset, next_offset-cur_offset))
                     cur_offset = next_offset
