@@ -803,14 +803,12 @@ def generateSource(absSourcePath, shdLib, slangs) :
 
 #-------------------------------------------------------------------------------
 def generate(input, out_src, out_hdr, args) :
-    # if util.isDirty(Version, [input], [out_src, out_hdr]) :
-    print 'slang:'
-    print args['slang']
-    slangs = slVersions[args['slang']]
-    shaderLibrary = ShaderLibrary([input])
-    shaderLibrary.parseSources()
-    shaderLibrary.generateShaderSources()
-    shaderLibrary.compile(input, out_hdr, slangs, args)
-    shaderLibrary.validate(slangs)
-    # generateSource(out_src, shaderLibrary, slangs)
-    generateHeader(out_hdr, shaderLibrary, slangs)
+    if util.isDirty(Version, [input], [out_src, out_hdr]) :
+        slangs = slVersions[args['slang']]
+        shaderLibrary = ShaderLibrary([input])
+        shaderLibrary.parseSources()
+        shaderLibrary.generateShaderSources()
+        shaderLibrary.compile(input, out_hdr, slangs, args)
+        shaderLibrary.validate(slangs)
+        # generateSource(out_src, shaderLibrary, slangs)
+        generateHeader(out_hdr, shaderLibrary, slangs)
