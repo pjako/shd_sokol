@@ -10,6 +10,9 @@ from util import glslcompiler, shdc
 from mod import log
 import zlib # only for crc32
 DEFAULT_UNIFORM_TYPES_DEFINE = '''
+#ifndef SHD_API
+#define SHD_API extern
+#endif
 #ifndef SHD_FLOAT
 #define SHD_FLOAT float
 #endif
@@ -585,9 +588,6 @@ def roundup(val, round_to):
 
 #-------------------------------------------------------------------------------
 def writeProgramHeader(f, shdLib, prog, slang) :
-    # f.write('const char* shd_shader_{}_source_vs = "";\n'.format(prog.name.lower()))
-    # f.write('const char* shd_shader_{}_source_fs = "";\n'.format(prog.name.lower()))
-    # f.write('namespace ' + prog.name + ' {\n')
     f.write(DEFAULT_UNIFORM_TYPES_DEFINE)
     for stage in ['VS', 'FS']:
         shd = shdLib.vertexShaders[prog.vs] if stage == 'VS' else shdLib.fragmentShaders[prog.fs]
@@ -595,11 +595,8 @@ def writeProgramHeader(f, shdLib, prog, slang) :
         for ub in refl['uniform_blocks']:
             structName = 'shd_shader_{}_uniform_{}'.format(prog.name.lower(), ub['type'])
             cur_offset = 0
-            f.write('#pragma pack(push,1)\n')
+            #f.write('#pragma pack(push,1)\n')
             f.write('typedef struct {\n')
-            # f.write('    static const int _bindSlotIndex = {};\n'.format(ub['slot']))
-            # f.write('    static const Oryol::ShaderStage::Code _bindShaderStage = Oryol::ShaderStage::{};\n'.format(stage))
-            # f.write('    static const uint32_t _layoutHash = {};\n'.format(getUniformBlockTypeHash(ub)))
             for m in ub['members']:
                 next_offset = m['offset']
                 numElements = m['num']
@@ -617,15 +614,13 @@ def writeProgramHeader(f, shdLib, prog, slang) :
                 if cur_offset != round16:
                     f.write('   uint8_t _pad_{}[{}];\n'.format(cur_offset, round16-cur_offset))
             f.write('{} {};\n'.format('}', structName))
-            f.write('#pragma pack(pop)\n')
-            f.write('const int {}_slot = {};\n'.format(structName, ub['slot']));
-            f.write('void shd_apply_myshader_{}_uniform_params({} *uniform) {}\n'.format(stage.lower(), structName, '{'))
+            #f.write('#pragma pack(pop)\n')
+            f.write('SHD_API const int {}_slot = {};\n'.format(structName, ub['slot']));
+            f.write('SHD_API void shd_apply_myshader_{}_uniform_params({} *uniform) {}\n'.format(stage.lower(), structName, '{'))
             f.write('   sg_apply_uniform_block(SG_SHADERSTAGE_{}, {}_slot, uniform, sizeof({}));\n'.format(stage, structName, structName))
             f.write('}\n')
             f.write('\n')
-    # f.write('    extern Oryol::ShaderSetup Setup();\n')
-    # f.write('}\n')
-    f.write('const sg_shader_desc shd_shader_{} = {}\n'.format(prog.name.lower(), '{'))
+    f.write('SHD_API const sg_shader_desc shd_shader_{} = {}\n'.format(prog.name.lower(), '{'))
     for stage in ['VS', 'FS']:
         shd = shdLib.vertexShaders[prog.vs] if stage == 'VS' else shdLib.fragmentShaders[prog.fs]
         refl = shd.slReflection[slang]
