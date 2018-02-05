@@ -53,6 +53,14 @@ void main_loop() {
     shd_apply_myshader_vs_uniform_params(&uniformBlock);
 }
 ```
+
+## Define your own Uniform types
+```C
+#define SHD_MAT4 my_mat4_type
+#define SHD_VEC3 my_vec3_type
+#include "generated_shader_file_name.h"
+```
+
 ## Uniform Types
 This are all uniform types
 ```C
@@ -124,11 +132,4 @@ typedef struct {
 } shd_mat4;
 #define SHD_MAT4 shd_mat4
 #endif
-```
-
-## Define your own Uniform types
-```C
-#define SHD_MAT4 my_mat4_type
-#define SHD_VEC3 my_mat3_type
-#include "generated_shader_file_name.h"
 ```
