@@ -1,4 +1,4 @@
-**Warning: This currently only works with metal shaders and also the current API will most likely change.**
+**Warning: This currently only tested with metal shaders (others could work) and the current API is still in flux**
 
 # Shader cross compiler
 
