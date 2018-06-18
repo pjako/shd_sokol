@@ -1,3 +1,5 @@
+**Warning: This currently only works with metal shaders and also the current API will most likely change.**
+
 # Shader cross compiler
 
 Shd is the shader generator from oryol but it targets sokol_gfx directly.
