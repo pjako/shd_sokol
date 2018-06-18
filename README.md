@@ -2,7 +2,7 @@
 
 # Shader cross compiler
 
-Shd is the shader generator from oryol but it targets sokol_gfx directly.
+Shd is the shader generator from oryol but it just generates the shaders and the reflection informations stored in structs.
 
 ## How to write a shader program
 - Create a file (choose_a_name).glsl
