@@ -86,7 +86,7 @@ typedef struct {
 #endif
 #define SHD_MAT4 shd_mat4
 enum SHD_INPUT_TYPE {
-    SHD_SAMPLER_TYPE_INVALID = 0,
+    SHD_INPUT_TYPE_INVALID = 0,
     SHD_INPUT_TYPE_FLOAT,
     SHD_INPUT_TYPE_VEC2,
     SHD_INPUT_TYPE_VEC3,
@@ -169,8 +169,8 @@ typedef struct {
     int textureCount;
     shd_texture *textures;
 } shd_shader;
-
-
+'''
+DEFAULT_HEADER2 = '''
 typedef struct {
     union {
         struct {
@@ -652,6 +652,12 @@ def writeHeaderTop(f, shdLib) :
     f.write('external "C" {\n')
     f.write('#endif\n')
     f.write(DEFAULT_HEADER)
+    f.write('enum SHD_PROGRAMS {\n')
+    f.write('   SHD_PROGRAM_INVALID = 0,\n')
+    for programName in shdLib.programs :
+        f.write('   SHD_PROGRAM_{},\n'.format(programName.upper()))
+    f.write('};\n')
+    f.write(DEFAULT_HEADER2)
 
 #-------------------------------------------------------------------------------
 def writeHeaderBottom(f, shdLib) :
@@ -723,11 +729,6 @@ def writeVertexShaderInputStructs(f, shd) :
 def generateHeader(absHeaderPath, shdLib, slangs) :
     f = open(absHeaderPath, 'w')
     writeHeaderTop(f, shdLib)
-    f.write('enum SHD_PROGRAMS {\n')
-    f.write('   SHD_PROGRAM_INVALID = 0,\n')
-    for programName in shdLib.programs :
-        f.write('   SHD_PROGRAM_{},\n'.format(programName.upper()))
-    f.write('}\n')
     for shdName in shdLib.vertexShaders :
         writeVertexShaderInputStructs(f, shdLib.vertexShaders[shdName])
         writeShaderUniformStructs(f, shdLib.vertexShaders[shdName])
@@ -860,6 +861,7 @@ def writeShaderSource(f, absPath, shd, slangs) :
     f.write('   shader.name = "{}";\n'.format(shd.name))
     idx = 0
     f.write('   switch(type) {\n')
+    f.write('       default:\n')
     for slVersion in shd.slReflection:
         slang = shd.slReflection[slVersion]
         f.write('       case {}: {}\n'.format(shdSlangTypes[slVersion.lower()], '{'))
@@ -913,7 +915,7 @@ def writeProgramCollectionSource(f, programs) :
     for programName in programs:
         f.write('   programs[{}] = (shd_program) shd_get_program_{}(type);\n'.format(idx, programName))
         idx += 1
-    f.write('   return {\n')
+    f.write('   return (shd_program_collection) {\n')
     f.write('       {}, &programs[0]\n'.format(numPrograms))
     f.write('   };\n')
     f.write('}\n')
@@ -948,6 +950,10 @@ def generateSource(absSourcePath, shdLib, slangs) :
 
 #-------------------------------------------------------------------------------
 def generate(input, out_src, out_hdr, args) :
+    f = open(out_src, 'w')
+    f.write('/* Hack to get around that fips forces .cc for the source file */')
+    f.close()
+    out_src = out_src.replace('.cc', '.c')
     if util.isDirty(Version, [input], [out_src, out_hdr]) :
         slangs = slVersions[args['slang']]
         shaderLibrary = ShaderLibrary([input])
