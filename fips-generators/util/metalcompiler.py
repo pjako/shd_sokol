@@ -38,6 +38,8 @@ def cc(platform, in_src, out_dia, out_air) :
     else :
         min_version_arg = '-mmacosx-version-min=10.11'
         std_arg = '-std=osx-metal1.1'
+    # -MO contains the shader source in the shaders
+    # this should be only used in debug
     cmd = ['metal', '-arch', 'air64', '-emit-llvm', '-ffast-math', '-c', 
            '-serialize-diagnostics', out_dia,
            '-o', out_air,

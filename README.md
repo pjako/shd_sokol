@@ -6,13 +6,13 @@ Shd is the shader generator from oryol but it targets sokol_gfx directly.
 - Create a file (choose_a_name).glsl
 - Add it to your fips cmake file via 
 ```CMAKE
-glsl_shader(shader.glsl)
+glsl_shader(shaders.glsl)
 ````
 - Write a shader
 ```GLSL
 @vs myVS
 uniform vsParams {
-    mat4 proj;
+    mat4 mvp;
 };
 in vec4 position;
 in vec2 texcoord0;
@@ -21,7 +21,7 @@ out vec2 uv;
 out vec4 color;
 
 void main() {
-    gl_Position = proj * position;
+    gl_Position = mvp * position;
     uv = texcoord0;
     color = color0;
 }
@@ -39,6 +39,62 @@ void main() {
 
 @program MyShader myVS myFS
 ```
+
+## Create sokol shaders from shd shaders
+
+```C
+#include "myshaders.h"
+#include "sokol_gfx.h"
+
+sg_shader_stage_desc generateSokolShaderDesc(const shd_shader shd) {
+    sg_shader_stage_desc shdDesc = {};
+    shdDesc.source = shd.source;
+    shdDesc.byte_code = shd.binary;
+    shdDesc.byte_code_size = shd.size;
+    shdDesc.entry = shd.entry;
+    for (int i = 0; i < shd.textureCount; ++i) {
+        shdDesc.images[i].name = shd.textures[i].name;
+        switch (shd.textures[i].type) {
+            case (SHD_SAMPLER_TYPE_2D): {
+                shdDesc.images[i].type = SG_IMAGETYPE_2D;
+                break;
+            }
+            case (SHD_SAMPLER_TYPE_CUBE): {
+                shdDesc.images[i].type = SG_IMAGETYPE_CUBE;
+                break;
+            }
+            case (SHD_SAMPLER_TYPE_ARRAY): {
+                shdDesc.images[i].type = SG_IMAGETYPE_ARRAY;
+                break;
+            }
+            case (SHD_SAMPLER_TYPE_3D): {
+                shdDesc.images[i].type = SG_IMAGETYPE_3D;
+                break;
+            }
+            default: {
+                assert(!"Unknown sampler type");
+            }
+        }
+    }
+    return shdDesc;
+}
+
+sg_shader_desc generateSokolProgramDesc(const shd_program program) {
+    sg_shader_desc programDesc;
+    programDesc.fs = generateSokolShaderDesc(program.fs);
+    programDesc.vs = generateSokolShaderDesc(program.vs);
+    return programDesc;
+}
+
+void init_program() {
+    /* ... */
+    const shd_program_collection programCollection = shd_get_programs(SHD_SHADER_TARGET_TYPE_METAL);
+    sg_shader_desc shdDsc = generateSokolProgramDesc(*programCollection.programs[0]);
+    sg_shader shd = sg_make_shader(&shdDsc);
+    /* ... */
+}
+```
+
 ## Use a shader program
 ```C
 void init_program() {
@@ -50,7 +106,7 @@ void init_program() {
 void main_loop() {
     shd_shader_myshader_uniform_vsParams uniformBlock;
     uniformBlock.m01 = 22.0f;
-    shd_apply_myshader_vs_uniform_params(&uniformBlock);
+    sg_apply_uniform_block(SG_SHADERSTAGE_VS, 0, &uniformBlock, sizeof(shd_shader_myshader_uniform_vsParams));
 }
 ```
 
@@ -61,8 +117,8 @@ void main_loop() {
 #include "generated_shader_file_name.h"
 ```
 
-## Uniform Types
-This are all uniform types
+## Uniform & Input (Attribute) types
+Input uses: float, SHD_VEC2, SHD_VEC3, SHD_VEC4
 ```C
 #ifndef SHD_VEC2
 typedef struct {
