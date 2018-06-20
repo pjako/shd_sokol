@@ -148,7 +148,7 @@ typedef struct {
 
 typedef struct {
     char *name;
-    int byteSize;
+    int size;
     int slot;
     int count;
     shd_uniform *uniforms;
@@ -177,8 +177,11 @@ typedef struct {
             shd_shader compute;
             shd_shader _empty;
         };
-        shd_shader vs;
-        shd_shader fs;
+        struct {
+            shd_shader vs;
+            shd_shader fs;
+        };
+        shd_shader shaders[2];
     };
     enum SHD_PROGRAMS id;
     char *name;
@@ -679,20 +682,6 @@ def getUniformBlockTypeHash(ub_refl):
 def roundup(val, round_to):
     return (val + (round_to - 1)) & ~(round_to - 1)
 
-
-def generateShaderHader(shd, slang) :
-    refl = shd.slReflection[slang]
-    # add uniform block layouts
-    for ub in refl['uniform_blocks']:
-        ub_size = ub['size']
-        f.write('')
-        if 'glsl' in slang:
-            ub_size = roundup(ub_size, 16)
-        f.write('    setup.AddUniformBlock("{}", "{}", {}, {}, {}::_bindShaderStage, {}::_bindSlotIndex);\n'.format(
-            ub['type'], ub['name'], getUniformBlockTypeHash(ub), ub_size, ub['type'], ub['type']))
-    # add textures layouts to setup objects
-    for tex in refl['textures']:
-        f.write('    setup.AddTexture("{}", {}, Oryol::ShaderStage::{}, {});\n'.format(tex['name'], texOryolType[tex['type']], stage, tex['slot']))
 #-------------------------------------------------------------------------------
 def writeShaderUniformStructs(f, shd) :
     for slangName in shd.slReflection :
@@ -747,11 +736,20 @@ def writeSourceTop(f, absSourcePath, shdLib, slang) :
     f.write(' * -----------------------------------------------------------------------------*/\n')
     f.write('#include "' + hdrFile + '.h"\n')
     f.write('\n')
+
+    f.write('#ifdef __cpp\n')
+    f.write('extern "C" {\n')
+    f.write('#endif\n')
+
+    f.write('\n')
     if slang == 'hlsl':
         f.write('typedef unsigned char shd_byte;\n')
 
 #-------------------------------------------------------------------------------
 def writeSourceBottom(f, shdLib) :
+    f.write('#ifdef __cpp\n')
+    f.write('}\n')
+    f.write('#endif\n')
     f.write('\n')
 
 #-------------------------------------------------------------------------------
@@ -773,7 +771,7 @@ def writeProgramDefinition(shd) :
             cur_offset += uniformCSize[m['type']] * m['num']
     f.write('   ')
     f.write('} shd_vs_params_{};\n'.format(shd.name))
-    f.write('SHD_API shd_program shd_get_program_{}();\n'.format(shd.name))
+    f.write('shd_program shd_get_program_{}();\n'.format(shd.name))
 #-------------------------------------------------------------------------------
 
 def writeShaderDetails(f, refl) :
@@ -787,12 +785,14 @@ def writeShaderDetails(f, refl) :
             slot = 0
             if texture.get('slot'):
                 slot = texture['slot']
-            f.write('           textures[{}].name = "{}";\n'.format(idx, texture['name']))
+            f.write('           textures[{}].name = (char *) "{}";\n'.format(idx, texture['name']))
             f.write('           textures[{}].slot = {};\n'.format(idx, slot))
             f.write('           textures[{}].type = {};\n'.format(idx, textureShdTypes[texture['type']]))
             idx += 1
-        f.write('           shader.textureCount = {};\n'.format(numTextures))
         f.write('           shader.textures = &textures[0];\n')
+    else:
+        f.write('           shader.textures = 0;\n')
+    f.write('           shader.textureCount = {};\n'.format(numTextures))
     inputs = refl['inputs']
     inputsLeng = len(inputs)
     if inputsLeng > 0:
@@ -802,22 +802,26 @@ def writeShaderDetails(f, refl) :
             slot = 0
             if input.get('slot'):
                 slot = input['slot']
-            f.write('           inputs[{}].name = "{}";\n'.format(idx, input['name']))
+            f.write('           inputs[{}].name = (char *) "{}";\n'.format(idx, input['name']))
             f.write('           inputs[{}].slot = {};\n'.format(idx, slot))
             f.write('           inputs[{}].type = {};\n'.format(idx, inputShdTypes[input['type']]))
             idx += 1
-        f.write('           shader.inputCount = {};\n'.format(inputsLeng))
         f.write('           shader.inputs = &inputs[0];\n')
-
+    else:
+        f.write('           shader.inputs = 0;\n')
+    f.write('           shader.inputCount = {};\n'.format(inputsLeng))
     blocks = refl['uniform_blocks']
+    f.write('           shader.uniformBlockCount = {};\n'.format(len(blocks)))
     if len(blocks) == 0:
+        f.write('           shader.uniformBlocks = 0;\n')
         return
     f.write('           static shd_uniform_block blocks[{}];\n'.format(len(blocks)))
     for ub in blocks:
         members = ub['members']
-        f.write('           blocks[{}].name = "{}";\n'.format(blockIndex, ub['type']))
+        f.write('           blocks[{}].name = (char *) "{}";\n'.format(blockIndex, ub['type']))
         f.write('           blocks[{}].slot = {};\n'.format(blockIndex, ub['slot']))
         f.write('           blocks[{}].count = {};\n'.format(blockIndex, len(members)))
+        blockSize = 0
         f.write('           {\n')
         f.write('               static shd_uniform uniforms[{}];\n'.format(len(members)))
         f.write('               blocks[{}].uniforms = &uniforms[0];\n'.format(blockIndex))
@@ -826,7 +830,8 @@ def writeShaderDetails(f, refl) :
         for m in members:
             next_offset = m['offset']
             numElements = m['num']#uniformCSize
-            f.write('               uniforms[{}].name = "{}";\n'.format(idx, m['name']))
+            blockSize += uniformCSize[m['type']]
+            f.write('               uniforms[{}].name = (char *) "{}";\n'.format(idx, m['name']))
             f.write('               uniforms[{}].type = {};\n'.format(idx, uniformEnumType[m['type']]))
             f.write('               uniforms[{}].size = {};\n'.format(idx, uniformCSize[m['type']]))
             f.write('               uniforms[{}].offset = {};\n'.format(idx, next_offset))
@@ -834,9 +839,9 @@ def writeShaderDetails(f, refl) :
             cur_offset = next_offset
             cur_offset += uniformCSize[m['type']] * m['num']
             idx += 1
-        blockIndex += 1
         f.write('           }\n')
-    f.write('           shader.uniformBlockCount = {};\n'.format(len(blocks)))
+        f.write('           blocks[{}].size = {};\n'.format(blockIndex, blockSize))
+        blockIndex += 1
     f.write('           shader.uniformBlocks = &blocks[0];\n')
 #-------------------------------------------------------------------------------
 
@@ -858,7 +863,7 @@ def writeShaderSource(f, absPath, shd, slangs) :
     f.write('const shd_shader shd_{}_{}(enum SHD_SHADER_TARGET_TYPE type) {}\n'.format(shd.getTag(), shd.name, '{'))
     f.write('   shd_shader shader;\n')
     f.write('   shader.type = {};\n'.format(shdShaderTypes[shd.getTag()]))
-    f.write('   shader.name = "{}";\n'.format(shd.name))
+    f.write('   shader.name = (char *) "{}";\n'.format(shd.name))
     idx = 0
     f.write('   switch(type) {\n')
     f.write('       default:\n')
@@ -866,6 +871,7 @@ def writeShaderSource(f, absPath, shd, slangs) :
         slang = shd.slReflection[slVersion]
         f.write('       case {}: {}\n'.format(shdSlangTypes[slVersion.lower()], '{'))
         if isGLSL(slVersion):
+            f.write('       shader.binary = 0;\n')
             # GLSL source code is directly inlined for runtime-compilation
             f.write('       shader.source = \n'.format(idx))
             glsl_src_path = '{}.{}'.format(base_path, slVersion)
@@ -880,14 +886,16 @@ def writeShaderSource(f, absPath, shd, slangs) :
             # human-readable version
             hlsl5CName = '{}_{}_hlsl5'.format(shd.name, shd.getTag())
             f.write('           shader.binary = (unsigned char *) {};\n'.format(hlsl5CName))
+            f.write('           shader.source = 0;\n')
             f.write('           shader.size =  sizeof({});\n'.format(hlsl5CName))
         elif isMetal(slVersion):
             # for Metal, the shader has been compiled into a binary shader
             # library file, which needs to be embedded into the C header
             mtlCName = '{}_{}_metallib'.format(shd.name, shd.getTag())
             # this is the default entry created by cross SPIRV
-            f.write('           shader.entry = "main0";\n')
+            f.write('           shader.entry = (char *) "main0";\n')
             f.write('           shader.binary = (unsigned char *) {};\n'.format(mtlCName))
+            f.write('           shader.source = 0;\n')
             f.write('           shader.size =  sizeof({});\n'.format(mtlCName))
         writeShaderDetails(f, slang)
         f.write('           break;\n')
@@ -901,7 +909,7 @@ def writeShaderSource(f, absPath, shd, slangs) :
 def writeProgramSource(f, program) :
     f.write('const shd_program shd_get_program_{}(enum SHD_SHADER_TARGET_TYPE type) {}\n'.format(program.name, '{'))
     f.write('   shd_program program;\n')
-    f.write('   program.name = "{}";\n'.format(program.name))
+    f.write('   program.name = (char *) "{}";\n'.format(program.name))
     f.write('   program.id = SHD_PROGRAM_{},\n'.format(program.name.upper()))
     f.write('   program.vs = (shd_shader) shd_vs_{}(type);\n'.format(program.vs))
     f.write('   program.fs = (shd_shader) shd_fs_{}(type);\n'.format(program.fs))
@@ -931,7 +939,7 @@ def generateSource(absSourcePath, shdLib, slangs) :
         writeProgramSource(f, shdLib.programs[programName])
 
     writeProgramCollectionSource(f, shdLib.programs)
-    f.write('SHD_API enum SHD_SHADER_TARGET_TYPE shd_get_default_slang() {\n')
+    f.write('enum SHD_SHADER_TARGET_TYPE shd_get_default_slang() {\n')
     f.write('   return {};\n'.format(shdSlangTypes[slangs[0]]))
     f.write('}\n')
 
@@ -953,7 +961,7 @@ def generate(input, out_src, out_hdr, args) :
     f = open(out_src, 'w')
     f.write('/* Hack to get around that fips forces .cc for the source file */')
     f.close()
-    out_src = out_src.replace('.cc', '.c')
+    #out_src = out_src.replace('.cc', '.c')
     if util.isDirty(Version, [input], [out_src, out_hdr]) :
         slangs = slVersions[args['slang']]
         shaderLibrary = ShaderLibrary([input])

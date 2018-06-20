@@ -74,7 +74,40 @@ sg_shader_stage_desc generateSokolShaderDesc(const shd_shader shd) {
                 break;
             }
             default: {
-                assert(!"Unknown sampler type");
+                DF_ASSERT(!"Unknown sampler type");
+            }
+        }
+    }
+    
+    for (int i = 0; i < shd.uniformBlockCount; ++i) {
+        shdDesc.uniform_blocks[i].size = shd.uniformBlocks[i].size;
+        for (int j = 0; j < shd.uniformBlocks[i].count; ++j) {
+            shdDesc.uniform_blocks[i].uniforms[j].name = shd.uniformBlocks[i].uniforms[j].name;
+            shdDesc.uniform_blocks[i].size = shd.uniformBlocks[i].uniforms[j].size;
+            switch (shd.uniformBlocks[i].uniforms[j].type) {
+                case(SHD_UNIFORM_TYPE_FLOAT): {
+                    shdDesc.uniform_blocks[i].uniforms[j].type = SG_UNIFORMTYPE_FLOAT;
+                    break;
+                }
+                case(SHD_UNIFORM_TYPE_VEC2): {
+                    shdDesc.uniform_blocks[i].uniforms[j].type = SG_UNIFORMTYPE_FLOAT2;
+                    break;
+                }
+                case(SHD_UNIFORM_TYPE_VEC3): {
+                    shdDesc.uniform_blocks[i].uniforms[j].type = SG_UNIFORMTYPE_FLOAT3;
+                    break;
+                }
+                case(SHD_UNIFORM_TYPE_VEC4): {
+                    shdDesc.uniform_blocks[i].uniforms[j].type = SG_UNIFORMTYPE_FLOAT4;
+                    break;
+                }
+                case(SHD_UNIFORM_TYPE_MAT4): {
+                    shdDesc.uniform_blocks[i].uniforms[j].type = SG_UNIFORMTYPE_MAT4;
+                    break;
+                }
+                default: {
+                    assert(!"Unknown Uniform Type");
+                }
             }
         }
     }
@@ -82,9 +115,9 @@ sg_shader_stage_desc generateSokolShaderDesc(const shd_shader shd) {
 }
 
 sg_shader_desc generateSokolProgramDesc(const shd_program program) {
-    sg_shader_desc programDesc;
-    programDesc.fs = generateSokolShaderDesc(program.fs);
+    sg_shader_desc programDesc = {};
     programDesc.vs = generateSokolShaderDesc(program.vs);
+    programDesc.fs = generateSokolShaderDesc(program.fs);
     return programDesc;
 }
 
